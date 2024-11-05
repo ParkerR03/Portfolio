@@ -1,0 +1,160 @@
+---
+title: "Homework Assignment"
+author: "Parker Reedy"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: pdf_document
+---
+
+
+```{r setup, echo=FALSE}
+library(knitr)
+library(tidyverse)
+# set global chunk options: images will be 7x5 inches
+knitr::opts_chunk$set(fig.width=7, fig.height=5)
+options(digits = 4)
+
+## indents are for indenting r code as formatted text
+## They may need to be adjusted depending on your OS
+# if your output looks odd, increase or decrease indent
+indent1 = '    '
+indent2 = '        '
+indent3 = '            '
+```
+
+```{r}
+algae <- read_table("algaeBloom.txt", col_names=
+  c('season','size','speed','mxPH','mnO2','Cl','NO3','NH4',
+  'oPO4','PO4','Chla','a1','a2','a3','a4','a5','a6','a7'),
+  na="XXXXXXX")
+glimpse(algae)
+```
+
+1. 
+(a). 40 observations in Autumn, 53 in spring, 45 in summer, and 62 in winter
+```{r}
+algae %>% group_by(season) %>% summarize(n = n())
+```
+
+(b).
+```{r}
+colSums(is.na(algae))
+```
+There are missing values in this data frame.
+
+```{r}
+sapply(algae[4:11], function(x) c(mean=mean(x, na.rm=TRUE), var=var(x, na.rm=TRUE)))
+
+```
+I calculated the mean and variance of the chemicals after removing the missing values. The variance for chemicals such as NH4, oPO4, PO4, and Cl are extremely high compared to NO3 and Chlorophyll. NH4 clearly has the largest variance.
+
+(c).
+```{r}
+
+chem_median<- sapply(algae[5:11], function(x) c(median=median(x, na.rm=TRUE)))
+chem_median
+
+MAD <- c()
+for (x in 5:11){
+  MAD <- append(MAD, mad(algae[x], na.rm=TRUE))
+}
+
+df <- data.frame(chem_median, MAD)
+df
+
+```
+The Median & MAD are much more similar to each other than the Mean and Variance are. The variance is on a completely different magnitude than the Mean.
+
+2.
+(a).
+```{r}
+ggplot(algae, aes(mxPH), na.rm = TRUE) + 
+  geom_histogram(
+    aes(y = after_stat(count)),
+    bins=30
+) + labs(
+  title = "Histogram of mxPH", x = "mxPH", y = "Probability density"
+)
+
+```
+The distribution isn't skewed since there aren't enough observations concentrated in one direction to warrant labeling it as skewed.
+
+(b).
+```{r}
+ggplot(algae, aes(mxPH), na.rm = TRUE) + 
+  geom_histogram(
+    aes(y = after_stat(count)),
+    bins=30
+) + labs(
+  title = "Histogram of mxPH", x = "mxPH", y = "Probability density"
+) + geom_density(aes(y = after_stat(density * 30)) # multiply density * the number of bins so the graphs match
+) + geom_rug()
+
+```
+
+(c).
+```{r}
+ggplot(algae, aes(a4, y = factor(speed)), na.rm = TRUE) +
+  geom_boxplot() +
+  labs(title = 'A conditioned Boxplot of Algal a4', ylab = 'speed')
+
+```
+I notice that there is not as much a4 present in slower rivers than there are in faster rivers.
+
+
+3
+(a).
+```{r}
+sum(rowSums(is.na(algae)) > 0)
+colSums(is.na(algae))
+
+```
+There are 16 observations with missing values in them. There is 1 missing value for mxPH, 2 for mn02, 10 for cl, 2 for NO3, 2 for NH4, 2 for oPO4, 2 for PO4, and 12 for Chla.
+
+(b).
+```{r}
+algae.del <- filter(algae, !is.na(mxPH & mnO2 & Cl & NO3 & NH4 & oPO4 & PO4 & Chla))
+all(complete.cases(algae.del))
+nrow(algae.del)
+```
+There are 184 observations remaining in algae.del
+
+
+4
+(a).
+$$ \text{The terms}\ Var(\hat{f}(x_0))\  \text{and} \ [Bias(\hat{f(x_0)})]^2 \  \text{are the reducible errors in the bias-variance tradeoff}$$
+$$ \\ $$
+$$ \text{the irreducible error is the} \ Var(\epsilon)$$
+
+(b).    
+bias-variance decomposition
+
+$$ E[(y_0-\hat{f}(x_0))^2] = Var(\hat{f}(x_0)) + [Bias(\hat{f}(x_0))]^2+Var(\epsilon) $$
+$$ \text{If we take}\  \hat{f}(x_0) = E[Y|X=x_0]\ \text{then}\ Var(x_0) = E[(\hat{f}(x_0)-E[\hat{f}(x_0)])^2]\ \text{will be minimized} $$
+$$ \text{and}\  [Bias(\hat{f}(x_0))]^2 = [E[(\hat{f}(x_0)]-\hat{f}(x_0)]^2\ \text{will also be minimized} $$
+$$ \text{leaving}\ Var(\epsilon)\ \text{which can not be reduced because it is the random error.} $$
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

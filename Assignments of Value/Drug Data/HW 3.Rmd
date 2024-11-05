@@ -1,0 +1,262 @@
+---
+title: "Homework Assignment 3"
+author: "Parker Reedy"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: pdf_document
+---
+
+
+```{r setup, echo=FALSE, warning=FALSE, message=FALSE}
+library(knitr)
+# set global chunk options: images will be 7x5 inches
+knitr::opts_chunk$set(fig.width=7, fig.height=5)
+options(digits = 4)
+
+## indents are for indenting r code as formatted text
+## They may need to be adjusted depending on your OS
+# if your output looks odd, increase or decrease indent
+indent1 = '    '
+indent2 = '        '
+indent3 = '            '
+
+#libraries
+library(tidyverse)
+library(ISLR)
+library(glmnet)
+library(tree)
+library(maptree)
+library(randomForest)
+library(gbm)
+library(ROCR)
+library(dplyr)
+library(tidyr)
+```
+
+
+1. 
+```{r}
+set.seed(123)
+
+dat <- model.matrix(Sales~., Carseats)[, -1]
+train = sample(nrow(dat), 30)
+x.train = dat[train, ]
+y.train = Carseats[train, ]$Sales
+
+# The rest as test data
+x.test = dat[-train, ]
+y.test = Carseats[-train, ]$Sales
+x.test
+```
+
+a. The best lambda is 0.02848
+```{r}
+set.seed(123)
+
+lambda.list.ridge = 1000 * exp(seq(0, log(1e-5), length = 100))
+
+cv.ridge.out = cv.glmnet(x.train, y.train, alpha=0, lambda = lambda.list.ridge)
+
+plot(cv.ridge.out) + abline(v = log(cv.ridge.out$lambda.min), col="red", lwd=3, lty=2)
+
+
+bestlam = cv.ridge.out$lambda.min
+bestlam
+
+out = glmnet(x.train,y.train,alpha=0)
+predict(out, type='coefficients', s=bestlam)[1:12,]
+```
+
+
+b. The test MSE is 1.46 and the training MSE is 0.507. This is a fairly low MSE for both training and test. It is possible that we have over fit the data on the training set because the test MSE is 3 times the training MSE. but nonetheless, they are quite good values.
+```{r}
+ridge.mod = glmnet(x.train,y.train,alpha=0,lambda=bestlam)
+
+ridge.pred=predict(ridge.mod,s=bestlam ,newx=x.test)
+mean((ridge.pred-y.test)^2)
+
+ridge.pred.train=predict(ridge.mod,s=bestlam ,newx=x.train)
+mean((ridge.pred.train-y.train)^2)
+```
+
+
+c. The optimal lambda value is 0.0366. The lasso coefficient estimates corresponding to this lambda value are shown below. There are two coefficients set to zero which are Population, and USYes. This means that in the lasso subset selection, Population and USYes do not have an affect on the response variable Sales because they are effectively excluded from the model.
+```{r}
+set.seed(123)
+
+lambda.list.lasso = 2 * exp(seq(0, log(1e-4), length = 100))
+
+cv.lasso.out = cv.glmnet(x.train, y.train, alpha=1, lambda = lambda.list.lasso)
+
+bestlamlas = cv.lasso.out$lambda.min
+bestlamlas
+
+lasso.mod = glmnet(x.train, y.train, alpha=1, lambda=bestlamlas)
+
+lasso.pred = predict(lasso.mod, s=bestlam, newx = x.train)
+
+
+lasso.coef = predict(lasso.mod, type='coefficients', s=bestlamlas)
+lasso.coef
+
+```
+
+d. The training MSE for the lasso model is 0.546 while the Test MSE is 1.464. Similar to the ridge model, it could be the case that we are overfitting our data
+```{r}
+lasso.pred=predict(lasso.mod,s=bestlamlas ,newx=x.test)
+mean((lasso.pred-y.test)^2)
+
+lasso.pred.train=predict(lasso.mod,s=bestlamlas ,newx=x.train)
+mean((lasso.pred.train-y.train)^2)
+
+```
+e. In this application, the Ridge and Lasso methods for estimates are both very similar. They have basically the same test MSE and the training MSE for lasso is only 0.04 more than the ridge training MSE. For this data, It might be better to use the Lasso because it makes the model more sparse which in turn makes it simpler.
+
+2.
+```{r}
+drug <- read_csv('drug.csv',
+col_names=c('ID','Age','Gender','Education','Country',
+'Ethnicity','Nscore',
+'Escore','Oscore','Ascore','Cscore',
+'Impulsive','SS','Alcohol','Amphet','Amyl','Benzos',
+'Caff','Cannabis', 'Choc','Coke','Crack','Ecstasy',
+'Heroin','Ketamine','Legalh','LSD','Meth',
+'Mushrooms','Nicotine','Semer','VSA'))
+
+```
+
+a.
+```{r}
+drug$recent_nicotine_use <- factor(ifelse(drug$Nicotine >='CL3','Yes', 'No'), levels = c('No', 'Yes'))
+head(drug$recent_nicotine_use)
+```
+b.
+```{r}
+sub_drug <- drug[, c(2:13, 33)]
+colnames(sub_drug)
+```
+
+c.
+```{r}
+set.seed(123)
+
+trainsamp = sample(nrow(sub_drug), 1000)
+
+drug.train = sub_drug[trainsamp, ]
+
+drug.test = sub_drug[-trainsamp, ]
+
+head(drug.train)
+```
+
+
+d.
+```{r}
+mod1 <- glm(recent_nicotine_use ~., data=drug.train, family = 'binomial')
+summary(mod1)
+
+```
+
+e.
+```{r}
+tree.drug <- tree(recent_nicotine_use~., data = drug.train)
+tree.drug
+```
+
+f. The best size for our tree using 5-fold cross validation is 5
+```{r}
+set.seed(2)
+cv = cv.tree(tree.drug, FUN=prune.misclass, K=5)
+cv
+best.size = min(cv$size[cv$dev == min(cv$dev)])
+best.size
+
+```
+
+g.
+```{r}
+pt.cv = prune.misclass(tree.drug, best=best.size)
+
+draw.tree(pt.cv, nodeinfo=TRUE, cex = 0.55)
+title("Pruned Classification Tree Built on Training Set")
+
+```
+
+h. The True Positive Rate is 0.80 and the False Positive Rate is 0.47
+```{r}
+tree.pred = predict(pt.cv, drug.test, type = 'class')
+
+recent.test <- drug.test$recent_nicotine_use
+
+error = table(recent.test, tree.pred)
+error
+
+
+TN = error[1]
+FP = error[3]
+FN = error[2]
+TP = error[4]
+
+#True Positive Rate = TP/(TP+FN)
+paste('True Positive Rate: ', TP/(TP+FN))
+
+#False Positive Rate = FP/(FP+TN)
+paste('False Positive Rate: ', FP/(FP+TN))
+
+```
+
+i. The variables that seem to be the most important are SS, Country, and Age.
+```{r}
+set.seed(123)
+
+boost.drug = gbm(ifelse(recent_nicotine_use == 'Yes', 1, 0)~., data=drug.train,
+                distribution = 'bernoulli', n.trees = 1000, shrinkage = 0.01)
+
+summary(boost.drug)
+```
+
+j. The OOB estimate of error rate is 30%, There were 3 variables randomly considered at each split in the trees. 500 trees were used to fit the data. Despite some differences, the order of important variables are fairly similar between the boosting and random forest models.
+```{r}
+set.seed(123)
+
+rf.drug <- randomForest(recent_nicotine_use~., data=drug.train,
+                        importance = TRUE)
+
+rf.drug
+importance(rf.drug)
+varImpPlot(rf.drug, sort=T, main='Variable Importance for rf.drug')
+```
+
+k.The fraction of people predicted to use nicotine recently who have in fact used nicotine recently is 0.5716. 
+```{r}
+prob.forest = predict(rf.drug, newdata=drug.test, type = 'prob')[, 'Yes']
+pred.forest = ifelse(prob.forest >=0.2, 'Yes', 'No')
+
+rf.matrix = table(drug.test$recent_nicotine_use, pred.forest)
+rf.matrix
+
+response.boost <- predict(boost.drug, newdata = drug.test, type = 'response')
+pred.boost = ifelse(response.boost >= 0.2, 'Yes', 'No')
+
+boost.matrix = table(drug.test$recent_nicotine_use, pred.boost)
+boost.matrix
+
+#forest - Fraction of predicted nicotine use who actually use nicotine.
+rf.matrix[4] / (rf.matrix[3]+rf.matrix[4])
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
